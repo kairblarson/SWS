@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Severe Weather Score</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 2rem;
+        background-color: #f4f4f4;
+      }
+      .score-box {
+        background-color: #fff;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+      }
+      .alert {
+        background: #fff;
+        border-left: 5px solid red;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      .alert h3 {
+        margin: 0 0 0.5rem 0;
+      }
+      .low {
+        border-color: #ccc;
+      }
+      .medium {
+        border-color: orange;
+      }
+      .high {
+        border-color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🚨 Severe Weather Score</h1>
+    <canvas id="scoreChart" width="600" height="200"></canvas>
+    <h3>
+      Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
+    </h3>
+    <div class="score-box">
+      <h2>Current Score: <span id="score">Loading...</span></h2>
+    </div>
+    <div id="statsDisplay" class="stats-container"></div>
+    <div id="alerts"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script>
+      function getWeight(type) {
+        const t = type?.toLowerCase();
+        if (t === "tornado emergency") return 300;
+        if (t.includes("particularly dangerous")) return 150;
+        if (t === "tornado warning") return 50;
+        if (t === "tornado watch") return 20;
+        if (t === "severe thunderstorm warning") return 10;
+        return 0;
+      }
+
+      function getSeverityClass(weight) {
+        if (weight >= 150) return "high";
+        if (weight >= 50) return "medium";
+        return "low";
+      }
+
+      function renderAlerts(alerts) {
+        const $container = $("#alerts").empty();
+
+        alerts.sort(
+          (a, b) =>
+            getWeight(b.properties.event) - getWeight(a.properties.event)
+        );
+
+        alerts.forEach((alert) => {
+          const severity = getWeight(alert.properties.event);
+          const $alert = $(`
+          <div class="alert ${getSeverityClass(severity)}">
+            <h3>${alert.properties.event}</h3>
+            <p><strong>Area:</strong> ${alert.properties.areaDesc}</p>
+            <p><strong>Severity:</strong> ${alert.properties.severity}</p>
+            <p><strong>Certainty:</strong> ${alert.properties.certainty}</p>
+            <p><strong>Sent:</strong> ${new Date(
+              alert.properties.sent
+            ).toLocaleString()}</p>
+            <p>${alert.properties.headline || "No headline provided."}</p>
+          </div>
+        `);
+          $container.append($alert);
+        });
+      }
+
+      function fetchScore() {
+        console.log("Fetching score...");
+
+        $.getJSON("http://localhost:3000/weather-score", function (data) {
+          $("#score").text(data.score);
+          renderAlerts(data.alerts);
+          renderChart(data.history);
+          document.getElementById("maxScoreLastHour").textContent =
+            data.maxLastHourScore;
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+          console.error("Error fetching score:", textStatus, errorThrown);
+          $("#score").text("Error fetching data.");
+        });
+      }
+
+      let chart;
+
+      function renderChart(history) {
+        const labels = history.map((entry) =>
+          new Date(entry.timestamp).toLocaleTimeString()
+        );
+        const scores = history.map((entry) => entry.score);
+
+        if (chart) {
+          chart.data.labels = labels;
+          chart.data.datasets[0].data = scores;
+          chart.update();
+        } else {
+          chart = new Chart(document.getElementById("scoreChart"), {
+            type: "line",
+            data: {
+              labels,
+              datasets: [
+                {
+                  label: "Score",
+                  data: scores,
+                  borderColor: "red",
+                  fill: false,
+                },
+              ],
+            },
+            options: {
+              scales: {
+                x: { display: true },
+                y: { beginAtZero: true },
+              },
+            },
+          });
+        }
+      }
+
+      $(document).ready(function () {
+        fetchScore();
+        setInterval(fetchScore, 60000); // every minute
+      });
+    </script>
+  </body>
+</html>
