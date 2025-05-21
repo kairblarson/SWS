@@ -1,5 +1,8 @@
 {
-  "pdsCount": 0,
-  "torECount": 0,
-  "highestScore": 835
+  "pdsTornadoes": [],
+  "torETornadoes": [],
+  "highestScoreEver": {
+    "date": "2025-05-21T21:01:00.869Z",
+    "score": 70
+  }
 }

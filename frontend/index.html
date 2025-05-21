@@ -9,6 +9,8 @@
         font-family: Arial, sans-serif;
         padding: 2rem;
         background-color: #f4f4f4;
+        display: flex;
+        justify-content: center;
       }
       .score-box {
         background-color: #fff;
@@ -16,6 +18,24 @@
         border-radius: 8px;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
         margin-bottom: 2rem;
+      }
+      .stats-table {
+        width: 100%;
+        margin-bottom: 2rem;
+        border-collapse: collapse;
+        background-color: #fff;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .stats-table th,
+      .stats-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+      .stats-table th {
+        background-color: #f0f0f0;
       }
       .alert {
         background: #fff;
@@ -37,26 +57,60 @@
       .high {
         border-color: red;
       }
+      #content {
+        width: 100%;
+        max-width: 1000px;
+      }
     </style>
   </head>
   <body>
-    <h1>🚨 Severe Weather Score</h1>
-    <canvas id="scoreChart" width="600" height="200"></canvas>
-    <h3>
-      Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
-    </h3>
-    <div class="score-box">
-      <h2>Current Score: <span id="score">Loading...</span></h2>
-    </div>
-    <div id="statsDisplay" class="stats-container"></div>
-    <div id="alerts"></div>
+    <div id="content">
+      <h1>🚨 Severe Weather Score</h1>
+      <canvas id="scoreChart" width="600" height="200"></canvas>
+      <h3>
+        Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
+      </h3>
 
+      <div class="score-box">
+        <h2>Current Score: <span id="score">Loading...</span></h2>
+      </div>
+
+      <!-- 📊 Stats Table -->
+      <table class="stats-table">
+        <thead>
+          <tr>
+            <th>Tornado Emergencies</th>
+            <th>PDS Warnings</th>
+            <th>Tornado Warnings</th>
+            <th>Severe T-Storm Warnings</th>
+            <th>Total Warnings</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td id="torECount">0</td>
+            <td id="pdsCount">0</td>
+            <td id="tornadoCount">0</td>
+            <td id="svrCount">0</td>
+            <td id="totalCount">0</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div id="statsDisplay" class="stats-container"></div>
+      <div id="alerts"></div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
       function getWeight(type) {
         const t = type?.toLowerCase();
-        if (t === "tornado emergency") return 300;
+        if (t === "tornado emergency") {
+            //do this to all of them but before you do, you need to either take the value in the html or create some var that keeps track of the val and update that and then at the end set the values => hopefully that makes sense kai lol
+            //unrelated but lets change the background color based on the score OR the most severe event at the time
+            // $("#torECount")
+            return 300
+        };
         if (t.includes("particularly dangerous")) return 150;
         if (t === "tornado warning") return 50;
         if (t === "tornado watch") return 20;
@@ -79,6 +133,7 @@
         );
 
         alerts.forEach((alert) => {
+          if (alert.properties.event == "Severe Thunderstorm Warning") return;
           const severity = getWeight(alert.properties.event);
           const $alert = $(`
           <div class="alert ${getSeverityClass(severity)}">
@@ -99,16 +154,23 @@
       function fetchScore() {
         console.log("Fetching score...");
 
-        $.getJSON("http://localhost:3000/weather-score", function (data) {
-          $("#score").text(data.score);
-          renderAlerts(data.alerts);
-          renderChart(data.history);
-          document.getElementById("maxScoreLastHour").textContent =
-            data.maxLastHourScore;
-        }).fail(function (jqXHR, textStatus, errorThrown) {
-          console.error("Error fetching score:", textStatus, errorThrown);
-          $("#score").text("Error fetching data.");
-        });
+        fetch("http://localhost:3000/weather-score")
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+            return res.json();
+          })
+          .then((data) => {
+            $("#score").text(data.score);
+            renderAlerts(data.alerts);
+            renderChart(data.history);
+            document.getElementById("maxScoreLastHour").textContent =
+              data.maxLastHour;
+            console.log("Data received:", data);
+          })
+          .catch((error) => {
+            console.error("Error fetching score:", error);
+            $("#score").text("Error fetching data.");
+          });
       }
 
       let chart;

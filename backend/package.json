@@ -4,8 +4,8 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js",
-    "start": "nodemon server.js"
+    "dev": "nodemon --watch backend backend/server.js",
+    "start": "nodemon --watch backend backend/server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

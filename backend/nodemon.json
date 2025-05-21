@@ -1,3 +1,5 @@
 {
-  "ignore": ["alertStats.json"]
+  "watch": ["./server.js"],
+  "ignore": ["data/**"],
+  "ext": "js,json"
 }
