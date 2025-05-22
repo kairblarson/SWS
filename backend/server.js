@@ -16,9 +16,8 @@ app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 const API_URL = "https://api.weather.gov/alerts/active";
-const ALERT_THRESHOLD = 400;
-const RESET_THRESHOLD = 350;
-let lastScore = 0;
+const ALERT_THRESHOLD = 200;
+const RESET_THRESHOLD = 150;
 let scoreWentBelowReset = true;
 let cachedData = { score: 0, alerts: [] };
 
@@ -27,7 +26,7 @@ const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.GMAIL_EMAIL,
-    pass: process.env.GMAIL_PASSWORD, // Use your generated App Password here
+    pass: process.env.GMAIL_PASSWORD,
   },
 });
 
@@ -42,11 +41,11 @@ function calculateScore(alert) {
   let score = 0;
 
   // --- Base event type weighting ---
-  if (event.toLowerCase().includes("tornado warning")) score += 50;
-  if (event.toLowerCase().includes("tornado emergency")) score += 100;
+  if (event.toLowerCase().includes("tornado emergency")) score += 150;
   if (event.toLowerCase().includes("particularly dangerous situation"))
     score += 100;
-  if (event.toLowerCase().includes("severe thunderstorm warning")) return 0; // ignore
+  if (event.toLowerCase().includes("tornado warning")) score += 50;
+  if (event.toLowerCase().includes("severe thunderstorm warning")) return 10;
   if (event.toLowerCase().includes("tornado Watch")) return 0; // ignore
 
   // --- Radar/observed confirmation ---
@@ -173,7 +172,7 @@ async function fetchAlertsAndUpdate() {
         "tornado warning",
         "particularly dangerous situation",
         "tornado emergency",
-        "severe thunderstorm warning", //do not display these just show a number of how many their are but DO display the rest along with how many their are
+        "severe thunderstorm warning", //not displayed but does affect score
       ].includes(type);
     });
 
@@ -303,9 +302,6 @@ app.get("/weather-score", async (req, res) => {
   try {
     const stats = await readStats();
 
-    if (cachedData.alerts.length == 0) {
-      await fetchAlertsAndUpdate();
-    }
     const maxLastHour = getMaxScoreLastHour();
 
     res.json({
@@ -320,6 +316,10 @@ app.get("/weather-score", async (req, res) => {
     res.status(500).json({ error: "Failed to retrieve stats" });
   }
 });
+
+(async () => {
+  await fetchAlertsAndUpdate(); // Prime cache once
+})();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

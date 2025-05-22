@@ -11,6 +11,7 @@
         background-color: #f4f4f4;
         display: flex;
         justify-content: center;
+        min-height: 100vh;
       }
       .score-box {
         background-color: #fff;
@@ -52,14 +53,32 @@
         border-color: #ccc;
       }
       .medium {
-        border-color: orange;
+        border-color: rgba(255, 115, 0, 0.5) orange;
       }
       .high {
-        border-color: red;
+        border-color: rgba(255, 0, 0, 0.5);
+      }
+      .extreme {
+        border-color: rgba(255, 0, 255, 0.5);
       }
       #content {
         width: 100%;
-        max-width: 1000px;
+        background-color: whitesmoke;
+        width: 100vw;
+        padding: 20px;
+        border-radius: 10px;
+      }
+      .torEWarnBackgroundColor {
+        background-color: rgba(255, 0, 255, 0.5);
+      }
+      .PDSWarnBackgroundColor {
+        background-color: rgba(255, 0, 0, 0.5);
+      }
+      .torWarnBackgroundColor {
+        background-color: rgba(255, 115, 0, 0.5);
+      }
+      .severeWarnBackgroundColor {
+        background-color: #ccc;
       }
     </style>
   </head>
@@ -75,7 +94,6 @@
         <h2>Current Score: <span id="score">Loading...</span></h2>
       </div>
 
-      <!-- 📊 Stats Table -->
       <table class="stats-table">
         <thead>
           <tr>
@@ -103,34 +121,90 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
+      //this is just for rendering purposes to keep the high stuff at the top
       function getWeight(type) {
         const t = type?.toLowerCase();
-        if (t === "tornado emergency") {
-            //do this to all of them but before you do, you need to either take the value in the html or create some var that keeps track of the val and update that and then at the end set the values => hopefully that makes sense kai lol
-            //unrelated but lets change the background color based on the score OR the most severe event at the time
-            // $("#torECount")
-            return 300
-        };
-        if (t.includes("particularly dangerous")) return 150;
-        if (t === "tornado warning") return 50;
-        if (t === "tornado watch") return 20;
-        if (t === "severe thunderstorm warning") return 10;
+
+        if (t === "tornado emergency") return 5;
+        if (t.includes("particularly dangerous")) return 4;
+        if (t === "tornado warning") return 3;
+        if (t === "severe thunderstorm warning") return 2;
+        if (t === "tornado watch") return 1;
         return 0;
       }
 
+      //this is just for rendering as well to determine the color of the edge of the warning
       function getSeverityClass(weight) {
-        if (weight >= 150) return "high";
-        if (weight >= 50) return "medium";
+        if (weight == 5) return "extreme";
+        if (weight == 4) return "high";
+        if (weight == 3) return "medium";
         return "low";
       }
 
       function renderAlerts(alerts) {
         const $container = $("#alerts").empty();
 
+        let totalTorEWarnings = 0;
+        let totalPDSWarnings = 0;
+        let totalTornadoWarnings = 0;
+        let totalSevereThunderstormWarnings = 0;
+        let totalWarnings = 0;
+        let severitySet = new Set();
+
+        $("body").removeClass(
+          "torEWarnBackgroundColor PDSWarnBackgroundColor torWarnBackgroundColor severeWarnBackgroundColor"
+        );
+
         alerts.sort(
           (a, b) =>
             getWeight(b.properties.event) - getWeight(a.properties.event)
         );
+
+        alerts.forEach((alert) => {
+          if (alert.properties.event.toLowerCase() === "tornado emergency") {
+            severitySet.add("torEWarn");
+            totalTorEWarnings++;
+          }
+          if (
+            alert.properties.event
+              .toLowerCase()
+              .includes("particularly dangerous")
+          ) {
+            severitySet.add("PDSWarn");
+            totalPDSWarnings++;
+          }
+          if (alert.properties.event.toLowerCase() === "tornado warning") {
+            severitySet.add("torWarn");
+            totalTornadoWarnings++;
+          }
+          if (
+            alert.properties.event.toLowerCase() ===
+            "severe thunderstorm warning"
+          ) {
+            severitySet.add("severeWarn");
+            totalSevereThunderstormWarnings++;
+          }
+
+          if (severitySet.has("torEWarn"))
+            $("body").addClass("torEWarnBackgroundColor");
+          if (severitySet.has("PDSWarn"))
+            $("body").addClass("PDSWarnBackgroundColor");
+          if (severitySet.has("torWarn"))
+            $("body").addClass("torWarnBackgroundColor");
+          if (severitySet.has("severeWarn"))
+            $("body").addClass("severeWarnBackgroundColor");
+
+          $("#torECount").text(totalTorEWarnings);
+          $("#pdsCount").text(totalPDSWarnings);
+          $("#tornadoCount").text(totalTornadoWarnings);
+          $("#svrCount").text(totalSevereThunderstormWarnings);
+          $("#totalCount").text(
+            totalTorEWarnings +
+              totalPDSWarnings +
+              totalTornadoWarnings +
+              totalSevereThunderstormWarnings
+          );
+        });
 
         alerts.forEach((alert) => {
           if (alert.properties.event == "Severe Thunderstorm Warning") return;
@@ -160,12 +234,12 @@
             return res.json();
           })
           .then((data) => {
+            //maybe change the score color based on the score as well?
             $("#score").text(data.score);
             renderAlerts(data.alerts);
             renderChart(data.history);
             document.getElementById("maxScoreLastHour").textContent =
               data.maxLastHour;
-            console.log("Data received:", data);
           })
           .catch((error) => {
             console.error("Error fetching score:", error);
