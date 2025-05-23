@@ -1,314 +1,336 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Severe Weather Score</title>
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 2rem;
-        background-color: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        min-height: 100vh;
-      }
-      .score-box {
-        background-color: #fff;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        margin-bottom: 2rem;
-      }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Severe Weather Score</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background-color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .score-box {
+      background-color: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+    }
+
+    .stats-table {
+      width: 100%;
+      margin-bottom: 2rem;
+      border-collapse: collapse;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .stats-table th,
+    .stats-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .stats-table th {
+      background-color: #f0f0f0;
+    }
+
+    .alert {
+      background: #fff;
+      border-left: 5px solid red;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .alert h3 {
+      margin: 0 0 0.5rem 0;
+    }
+
+    .low {
+      border-color: #ccc;
+    }
+
+    .medium {
+      border-color: rgba(255, 115, 0, 0.5) orange;
+    }
+
+    .high {
+      border-color: rgba(255, 0, 0, 0.5);
+    }
+
+    .extreme {
+      border-color: rgba(255, 0, 255, 0.5);
+    }
+
+    #content {
+      width: 100%;
+      background-color: whitesmoke;
+      width: 100vw;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    .torEWarnBackgroundColor {
+      background-color: rgba(255, 0, 255, 0.5);
+    }
+
+    .PDSWarnBackgroundColor {
+      background-color: rgba(255, 0, 0, 0.5);
+    }
+
+    .torWarnBackgroundColor {
+      background-color: rgba(255, 115, 0, 0.5);
+    }
+
+    .severeWarnBackgroundColor {
+      background-color: #ccc;
+    }
+
+    @media (max-width: 600px) {
       .stats-table {
-        width: 100%;
-        margin-bottom: 2rem;
-        border-collapse: collapse;
-        background-color: #fff;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        border-radius: 6px;
-        overflow: hidden;
-      }
-      .stats-table th,
-      .stats-table td {
-        padding: 0.75rem 1rem;
-        text-align: left;
-        border-bottom: 1px solid #ddd;
-      }
-      .stats-table th {
-        background-color: #f0f0f0;
-      }
-      .alert {
-        background: #fff;
-        border-left: 5px solid red;
-        margin-bottom: 1rem;
-        padding: 1rem;
-        border-radius: 4px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-      .alert h3 {
-        margin: 0 0 0.5rem 0;
-      }
-      .low {
-        border-color: #ccc;
-      }
-      .medium {
-        border-color: rgba(255, 115, 0, 0.5) orange;
-      }
-      .high {
-        border-color: rgba(255, 0, 0, 0.5);
-      }
-      .extreme {
-        border-color: rgba(255, 0, 255, 0.5);
-      }
-      #content {
-        width: 100%;
-        background-color: whitesmoke;
-        width: 100vw;
-        padding: 20px;
-        border-radius: 10px;
-      }
-      .torEWarnBackgroundColor {
-        background-color: rgba(255, 0, 255, 0.5);
-      }
-      .PDSWarnBackgroundColor {
-        background-color: rgba(255, 0, 0, 0.5);
-      }
-      .torWarnBackgroundColor {
-        background-color: rgba(255, 115, 0, 0.5);
-      }
-      .severeWarnBackgroundColor {
-        background-color: #ccc;
+        display: none;
       }
 
-      @media (max-width: 600px) {
-        .stats-table {
-            display: none;
-        }
-        h1 {
-            font-size: 25px;
-        }
-        h2 {
-            font-size: 20px;
-        }
-        h3 {
-            font-size: 15px;
-        }
-        body {
-            padding: 0px;
-        }
-        #scoreChart {
-            width: 0px;
-        }
+      h1 {
+        font-size: 25px;
       }
-    </style>
-  </head>
-  <body>
-    <div id="content">
-      <h1>🚨 Severe Weather Score</h1>
-      <canvas id="scoreChart" width="600" height="200"></canvas>
-      <h3>
-        Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
-      </h3>
 
-      <div class="score-box">
-        <h2>Current Score: <span id="score">Loading...</span></h2>
-      </div>
+      h2 {
+        font-size: 20px;
+      }
 
-      <table class="stats-table">
-        <thead>
-          <tr>
-            <th>Tornado Emergencies</th>
-            <th>PDS Warnings</th>
-            <th>Tornado Warnings</th>
-            <th>Severe T-Storm Warnings</th>
-            <th>Total Warnings</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td id="torECount">0</td>
-            <td id="pdsCount">0</td>
-            <td id="tornadoCount">0</td>
-            <td id="svrCount">0</td>
-            <td id="totalCount">0</td>
-          </tr>
-        </tbody>
-      </table>
+      h3 {
+        font-size: 15px;
+      }
 
-      <div id="statsDisplay" class="stats-container"></div>
-      <div id="alerts"></div>
+      body {
+        padding: 0px;
+      }
+
+      #scoreChart {
+        width: 0px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="content">
+    <h1>🚨 Severe Weather Score</h1>
+    <canvas id="scoreChart" width="600" height="200"></canvas>
+    <h3>
+      Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
+    </h3>
+
+    <div class="score-box">
+      <h2>Current Score: <span id="score">Loading...</span></h2>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script>
-      //this is just for rendering purposes to keep the high stuff at the top
-      function getWeight(type) {
-        const t = type?.toLowerCase();
 
-        if (t === "tornado emergency") return 5;
-        if (t.includes("particularly dangerous")) return 4;
-        if (t === "tornado warning") return 3;
-        if (t === "severe thunderstorm warning") return 2;
-        if (t === "tornado watch") return 1;
-        return 0;
-      }
+    <table class="stats-table">
+      <thead>
+        <tr>
+          <th>Tornado Emergencies</th>
+          <th>PDS Warnings</th>
+          <th>Tornado Warnings</th>
+          <th>Severe T-Storm Warnings</th>
+          <th>Total Warnings</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td id="torECount">0</td>
+          <td id="pdsCount">0</td>
+          <td id="tornadoCount">0</td>
+          <td id="svrCount">0</td>
+          <td id="totalCount">0</td>
+        </tr>
+      </tbody>
+    </table>
 
-      //this is just for rendering as well to determine the color of the edge of the warning
-      function getSeverityClass(weight) {
-        if (weight == 5) return "extreme";
-        if (weight == 4) return "high";
-        if (weight == 3) return "medium";
-        return "low";
-      }
+    <div id="statsDisplay" class="stats-container"></div>
+    <div id="alerts"></div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script>
+    //this is just for rendering purposes to keep the high stuff at the top
+    function getWeight(type) {
+      const t = type?.toLowerCase();
 
-      function renderAlerts(alerts) {
-        // console.log("ALERTS: " +JSON.stringify(alerts))
-        const $container = $("#alerts").empty();
+      if (t === "tornado emergency") return 5;
+      if (t.includes("particularly dangerous")) return 4;
+      if (t === "tornado warning") return 3;
+      if (t === "severe thunderstorm warning") return 2;
+      if (t === "tornado watch") return 1;
+      return 0;
+    }
 
-        let totalTorEWarnings = 0;
-        let totalPDSWarnings = 0;
-        let totalTornadoWarnings = 0;
-        let totalSevereThunderstormWarnings = 0;
-        let totalWarnings = 0;
-        let severitySet = new Set();
+    //this is just for rendering as well to determine the color of the edge of the warning
+    function getSeverityClass(weight) {
+      if (weight == 5) return "extreme";
+      if (weight == 4) return "high";
+      if (weight == 3) return "medium";
+      return "low";
+    }
 
-        $("body").removeClass(
-          "torEWarnBackgroundColor PDSWarnBackgroundColor torWarnBackgroundColor severeWarnBackgroundColor"
+    function renderAlerts(alerts) {
+      // console.log("ALERTS: " +JSON.stringify(alerts))
+      const $container = $("#alerts").empty();
+
+      let totalTorEWarnings = 0;
+      let totalPDSWarnings = 0;
+      let totalTornadoWarnings = 0;
+      let totalSevereThunderstormWarnings = 0;
+      let totalWarnings = 0;
+      let severitySet = new Set();
+
+      $("body").removeClass(
+        "torEWarnBackgroundColor PDSWarnBackgroundColor torWarnBackgroundColor severeWarnBackgroundColor"
+      );
+
+      alerts.sort(
+        (a, b) =>
+          getWeight(b.properties.event) - getWeight(a.properties.event)
+      );
+
+      alerts.forEach((alert) => {
+        if (alert.properties.event.toLowerCase() === "tornado emergency") {
+          severitySet.add("torEWarn");
+          totalTorEWarnings++;
+        }
+        if (
+          alert.properties.event
+            .toLowerCase()
+            .includes("particularly dangerous")
+        ) {
+          severitySet.add("PDSWarn");
+          totalPDSWarnings++;
+        }
+        if (alert.properties.event.toLowerCase() === "tornado warning") {
+          severitySet.add("torWarn");
+          totalTornadoWarnings++;
+        }
+        if (
+          alert.properties.event.toLowerCase() ===
+          "severe thunderstorm warning"
+        ) {
+          severitySet.add("severeWarn");
+          totalSevereThunderstormWarnings++;
+        }
+
+        if (severitySet.has("torEWarn"))
+          $("body").addClass("torEWarnBackgroundColor");
+        if (severitySet.has("PDSWarn"))
+          $("body").addClass("PDSWarnBackgroundColor");
+        if (severitySet.has("torWarn"))
+          $("body").addClass("torWarnBackgroundColor");
+        if (severitySet.has("severeWarn"))
+          $("body").addClass("severeWarnBackgroundColor");
+
+        $("#torECount").text(totalTorEWarnings);
+        $("#pdsCount").text(totalPDSWarnings);
+        $("#tornadoCount").text(totalTornadoWarnings);
+        $("#svrCount").text(totalSevereThunderstormWarnings);
+        $("#totalCount").text(
+          totalTorEWarnings +
+          totalPDSWarnings +
+          totalTornadoWarnings +
+          totalSevereThunderstormWarnings
         );
+      });
 
-        alerts.sort(
-          (a, b) =>
-            getWeight(b.properties.event) - getWeight(a.properties.event)
-        );
-
-        alerts.forEach((alert) => {
-          if (alert.properties.event.toLowerCase() === "tornado emergency") {
-            severitySet.add("torEWarn");
-            totalTorEWarnings++;
-          }
-          if (
-            alert.properties.event
-              .toLowerCase()
-              .includes("particularly dangerous")
-          ) {
-            severitySet.add("PDSWarn");
-            totalPDSWarnings++;
-          }
-          if (alert.properties.event.toLowerCase() === "tornado warning") {
-            severitySet.add("torWarn");
-            totalTornadoWarnings++;
-          }
-          if (
-            alert.properties.event.toLowerCase() ===
-            "severe thunderstorm warning"
-          ) {
-            severitySet.add("severeWarn");
-            totalSevereThunderstormWarnings++;
-          }
-
-          if (severitySet.has("torEWarn"))
-            $("body").addClass("torEWarnBackgroundColor");
-          if (severitySet.has("PDSWarn"))
-            $("body").addClass("PDSWarnBackgroundColor");
-          if (severitySet.has("torWarn"))
-            $("body").addClass("torWarnBackgroundColor");
-          if (severitySet.has("severeWarn"))
-            $("body").addClass("severeWarnBackgroundColor");
-
-          $("#torECount").text(totalTorEWarnings);
-          $("#pdsCount").text(totalPDSWarnings);
-          $("#tornadoCount").text(totalTornadoWarnings);
-          $("#svrCount").text(totalSevereThunderstormWarnings);
-          $("#totalCount").text(
-            totalTorEWarnings +
-              totalPDSWarnings +
-              totalTornadoWarnings +
-              totalSevereThunderstormWarnings
-          );
-        });
-
-        alerts.forEach((alert) => {
-          if (alert.properties.event == "Severe Thunderstorm Warning") return;
-          const severity = getWeight(alert.properties.event);
-          const $alert = $(`
+      alerts.forEach((alert) => {
+        if (alert.properties.event == "Severe Thunderstorm Warning") return;
+        const severity = getWeight(alert.properties.event);
+        const $alert = $(`
           <div class="alert ${getSeverityClass(severity)}">
             <h3>${alert.properties.event}</h3>
             <p><strong>Area:</strong> ${alert.properties.areaDesc}</p>
             <p><strong>Severity:</strong> ${alert.properties.severity}</p>
             <p><strong>Certainty:</strong> ${alert.properties.certainty}</p>
             <p><strong>Sent:</strong> ${new Date(
-              alert.properties.sent
-            ).toLocaleString()}</p>
+          alert.properties.sent
+        ).toLocaleString()}</p>
             <p>${alert.properties.headline || "No headline provided."}</p>
           </div>
         `);
-          $container.append($alert);
+        $container.append($alert);
+      });
+    }
+
+    function fetchScore() {
+      const baseUrl = location.hostname === "localhost" ? "http://localhost:3000" : "http://100.94.108.114:3000";
+      fetch(`${baseUrl}/weather-score`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          //maybe change the score color based on the score as well?
+          $("#score").text(data.score);
+          renderAlerts(data.alerts);
+          renderChart(data.history);
+          document.getElementById("maxScoreLastHour").textContent =
+            data.maxLastHour;
+        })
+        .catch((error) => {
+          console.error("Error fetching score:", error);
+          $("#score").text("Error fetching data.");
+        });
+    }
+
+    let chart;
+
+    function renderChart(history) {
+      const labels = history.map((entry) =>
+        new Date(entry.timestamp).toLocaleTimeString()
+      );
+      const scores = history.map((entry) => entry.score);
+
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = scores;
+        chart.update();
+      } else {
+        chart = new Chart(document.getElementById("scoreChart"), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Score",
+                data: scores,
+                borderColor: "red",
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            scales: {
+              x: { display: true },
+              y: { beginAtZero: true },
+            },
+          },
         });
       }
+    }
 
-      function fetchScore() {
-        console.log("Fetching score...");
+    $(document).ready(function () {
+      fetchScore();
+      setInterval(fetchScore, 60000); // every minute
+    });
+  </script>
+</body>
 
-        fetch("http://localhost:3000/weather-score")
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
-            return res.json();
-          })
-          .then((data) => {
-            //maybe change the score color based on the score as well?
-            $("#score").text(data.score);
-            renderAlerts(data.alerts);
-            renderChart(data.history);
-            document.getElementById("maxScoreLastHour").textContent =
-              data.maxLastHour;
-          })
-          .catch((error) => {
-            console.error("Error fetching score:", error);
-            $("#score").text("Error fetching data.");
-          });
-      }
-
-      let chart;
-
-      function renderChart(history) {
-        const labels = history.map((entry) =>
-          new Date(entry.timestamp).toLocaleTimeString()
-        );
-        const scores = history.map((entry) => entry.score);
-
-        if (chart) {
-          chart.data.labels = labels;
-          chart.data.datasets[0].data = scores;
-          chart.update();
-        } else {
-          chart = new Chart(document.getElementById("scoreChart"), {
-            type: "line",
-            data: {
-              labels,
-              datasets: [
-                {
-                  label: "Score",
-                  data: scores,
-                  borderColor: "red",
-                  fill: false,
-                },
-              ],
-            },
-            options: {
-              scales: {
-                x: { display: true },
-                y: { beginAtZero: true },
-              },
-            },
-          });
-        }
-      }
-
-      $(document).ready(function () {
-        fetchScore();
-        setInterval(fetchScore, 60000); // every minute
-      });
-    </script>
-  </body>
 </html>
