@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
+import bigCities from "./bigCities.js";
 const dataPath = path.resolve("./alertStats.json");
 
 dotenv.config();
@@ -19,6 +20,7 @@ const API_URL = "https://api.weather.gov/alerts/active";
 const ALERT_THRESHOLD = 200;
 const RESET_THRESHOLD = 150;
 let scoreWentBelowReset = true;
+let isTorEActive = false;
 let cachedData = { score: 0, alerts: [] };
 
 // Create Nodemailer transporter with Gmail App Password
@@ -30,131 +32,87 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+//set it up to send an email RIGHT AWAY when a tornado emergency is issued
+//maybe add a small score to a tornado watch? like 1-5?
+
 function calculateScore(alert) {
   const {
     event,
     description = "",
     areaDesc = "",
     onset = "",
+    sent = "",
   } = alert.properties;
+
   const desc = description.toLowerCase();
-  let score = 0;
+  let baseScore = 0;
 
   // --- Base event type weighting ---
-  if (event.toLowerCase().includes("tornado emergency")) score += 150;
+  if (event.toLowerCase().includes("tornado emergency")) baseScore += 150;
   if (event.toLowerCase().includes("particularly dangerous situation"))
-    score += 100;
-  if (event.toLowerCase().includes("tornado warning")) score += 50;
-  if (event.toLowerCase().includes("severe thunderstorm warning")) return 10;
-  if (event.toLowerCase().includes("tornado Watch")) return 0; // ignore
+    baseScore += 100;
+  if (event.toLowerCase().includes("tornado warning")) baseScore += 25;
+  if (event.toLowerCase().includes("severe thunderstorm warning"))
+    baseScore += 10;
+  if (event.toLowerCase().includes("tornado watch")) return 2; // ignore
 
   // --- Radar/observed confirmation ---
-  if (
-    desc.toLowerCase().includes("radar confirmed") ||
-    desc.toLowerCase().includes("observed tornado")
-  )
-    score += 30;
-  if (
-    desc.toLowerCase().includes("tornado debris signature") ||
-    desc.toLowerCase().includes("tds")
-  )
-    score += 50;
+  if (desc.includes("radar confirmed") || desc.includes("observed tornado"))
+    baseScore += 30;
+  if (desc.includes("tornado debris signature") || desc.includes("tds"))
+    baseScore += 50;
 
   // --- Wind speed (estimated) ---
-  const windMatch = desc
-    .toLowerCase()
-    .match(/winds? (up to |near )?(\d{2,3}) ?mph/);
+  const windMatch = desc.match(/winds? (up to |near )?(\d{2,3}) ?mph/);
   if (windMatch) {
     const windSpeed = parseInt(windMatch[2]);
-    if (windSpeed >= 130) score += 50;
-    else if (windSpeed >= 100) score += 25;
-    else if (windSpeed >= 70) score += 10;
+    if (windSpeed >= 130) baseScore += 50;
+    else if (windSpeed >= 100) baseScore += 25;
+    else if (windSpeed >= 70) baseScore += 10;
   }
 
   // --- Tornado size or wedge ---
-  if (desc.toLowerCase().includes("wedge tornado")) score += 40;
-  const widthMatch = desc
-    .toLowerCase()
-    .match(/(width|wide)[^\d]*(\d{1,2}(\.\d+)?)( ?mile|mi)/);
+  if (desc.includes("wedge tornado")) baseScore += 40;
+  const widthMatch = desc.match(
+    /(width|wide)[^\d]*(\d{1,2}(\.\d+)?)( ?mile|mi)/
+  );
   if (widthMatch) {
     const width = parseFloat(widthMatch[2]);
-    if (width >= 1) score += 30;
-    else if (width >= 0.5) score += 15;
+    if (width >= 1) baseScore += 30;
+    else if (width >= 0.5) baseScore += 15;
   }
 
   // --- Storm speed ---
-  const motionMatch = desc.toLowerCase().match(/moving (at )?(\d{2,3}) ?mph/);
+  const motionMatch = desc.match(/moving (at )?(\d{2,3}) ?mph/);
   if (motionMatch) {
     const speed = parseInt(motionMatch[2]);
-    if (speed >= 70) score += 20;
-    else if (speed >= 50) score += 10;
+    if (speed >= 70) baseScore += 20;
+    else if (speed >= 50) baseScore += 10;
   }
 
   // --- Time of day (nighttime tornado) ---
   const onsetHour = onset ? new Date(onset).getHours() : null;
-  if (onsetHour !== null && (onsetHour < 6 || onsetHour >= 20)) score += 25;
+  if (onsetHour !== null && (onsetHour < 6 || onsetHour >= 20)) baseScore += 25;
 
   // --- Affected area size ---
   const counties = areaDesc.toLowerCase().split(";").length;
-  if (counties >= 10) score += 20;
-  else if (counties >= 5) score += 10;
+  if (counties >= 10) baseScore += 20;
+  else if (counties >= 5) baseScore += 10;
 
   // --- Large cities mentioned ---
-  const bigCities = [
-    "new york",
-    "los angeles",
-    "chicago",
-    "houston",
-    "phoenix",
-    "philadelphia",
-    "san antonio",
-    "san diego",
-    "dallas",
-    "austin",
-    "jacksonville",
-    "fort worth",
-    "columbus",
-    "charlotte",
-    "san francisco",
-    "indianapolis",
-    "seattle",
-    "denver",
-    "washington",
-    "boston",
-    "el paso",
-    "nashville",
-    "detroit",
-    "oklahoma city",
-    "portland",
-    "las vegas",
-    "memphis",
-    "louisville",
-    "baltimore",
-    "milwaukee",
-    "albuquerque",
-    "tucson",
-    "fresno",
-    "mesa",
-    "sacramento",
-    "atlanta",
-    "kansas city",
-    "colorado springs",
-    "miami",
-    "raleigh",
-    "omaha",
-    "long beach",
-    "virginia beach",
-    "oakland",
-    "minneapolis",
-    "tulsa",
-    "arlington",
-    "new orleans",
-    "wichita",
-    "cleveland",
-  ];
-  if (bigCities.some((city) => desc.includes(city))) score += 20;
+  if (bigCities.some((city) => desc.includes(city))) baseScore += 20;
 
-  return score;
+  // --- Time decay ---
+  let decay = 0;
+  if (sent) {
+    const sentTime = new Date(sent);
+    const now = new Date();
+    const minutesElapsed = Math.floor((now - sentTime) / (1000 * 60));
+    decay = Math.max(0, minutesElapsed);
+  }
+
+  const finalScore = Math.max(0, baseScore - decay);
+  return finalScore;
 }
 
 async function fetchAlertsAndUpdate() {
@@ -191,9 +149,12 @@ async function fetchAlertsAndUpdate() {
     }
 
     if (score >= ALERT_THRESHOLD && scoreWentBelowReset) {
-      console.log("Sending email...");
+      console.log("Sending email for severe weather breaking...");
       // Generate the dynamic email content
-      const emailContent = generateEmailContent(score, relevantAlerts);
+      const emailContent = generateSevereWeatherEmailContent(
+        score,
+        relevantAlerts
+      );
 
       // Email options
       const mailOptions = {
@@ -206,7 +167,7 @@ async function fetchAlertsAndUpdate() {
       // Send email with Nodemailer
       transporter.sendMail(mailOptions, (error, info) => {
         if (error) {
-          console.log("Error sending email:", error);
+          console.log("Error sending severe weather email:", error);
         } else {
           console.log("Email sent:", info.response);
         }
@@ -230,18 +191,42 @@ async function readStats() {
 }
 
 // Function to generate HTML email content dynamically
-function generateEmailContent(score, alerts) {
+function generateSevereWeatherEmailContent(score, alerts) {
+  const statesAffected = new Set();
+
+  alerts.forEach((alert) => {
+    statesAffected.add(
+      alert.properties.areaDesc.substring(
+        alert.properties.areaDesc.indexOf(",") + 2,
+        alert.properties.areaDesc.length
+      )
+    );
+  });
+
   return `
-      <h1 style="font-family: Arial, sans-serif; color: #333;">Severe Weather Alert</h1>
+      <h1 style="font-family: Arial, sans-serif; color: #333;">Severe Weather Breakout Alert</h1>
       <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
         <h2>Current Score: ${score}</h2>
+        <p>There is currently a severe weather breakout occuring accross: ${statesAffected}</p>
       </div>
     `;
+}
+
+function generateTorEEmailContent(alert) {
+  return `
+    <h1 style="font-family: Arial, sans-serif; color: #333;">Severe Weather Alert</h1>
+    <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
+      <h2>Tornado Emergency Issued for ${alert.properties.areaDesc}</h2>
+    </div>
+  `;
 }
 
 // Update stats based on current alerts and score
 async function updateStats(alerts, score) {
   const stats = await readStats(); // Assuming this reads the existing stats
+  let torEAlerts = 0; //initializes everytime so we dont need to manually reset it
+
+  generateSevereWeatherEmailContent(score, alerts); //HERE FOR TESTING PURPOSES
 
   // Initialize new stats structure if undefined
   if (!stats.pdsTornadoes) stats.pdsTornadoes = [];
@@ -260,13 +245,43 @@ async function updateStats(alerts, score) {
     }
 
     if (event.includes("tornado emergency")) {
+      torEAlerts++;
+
       stats.torETornadoes.push({
         date: a.properties.eventDate,
         eventDetails: a.properties.description,
       });
+
+      //logic that determines if torE alert has already been sent or not
+      if (!isTorEActive) {
+        console.log("Sending email for a Tornado Emergency...");
+        // Generate the dynamic email content
+        const emailContent = generateTorEEmailContent(a.properties.event);
+
+        // Email options
+        const mailOptions = {
+          from: "kairblarson@gmail.com",
+          to: "kairblarson@gmail.com", // The recipient email address
+          subject: "Tornado Emergency Issued",
+          html: emailContent, // Pass the generated HTML content here
+        };
+
+        // Send email with Nodemailer
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            console.log("Error sending tor e email:", error);
+          } else {
+            console.log("Email sent:", info.response);
+          }
+        });
+        isTorEActive = true;
+      }
     }
   });
 
+  if (torEAlerts == 0) {
+    isTorEActive = false;
+  }
   // Update highestScoreEver if the current score is higher
   if (score > stats.highestScoreEver.score) {
     stats.highestScoreEver = {
