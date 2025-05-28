@@ -121,6 +121,39 @@
           width: 0px;
         }
       }
+      .stats-mobile {
+        display: none;
+        background-color: #fff;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+      }
+
+      .stats-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .stats-row:last-child {
+        border-bottom: none;
+      }
+
+      .stats-row .label {
+        font-weight: bold;
+      }
+
+      /* Responsive swap */
+      @media (max-width: 600px) {
+        .stats-table {
+          display: none;
+        }
+
+        .stats-mobile {
+          display: block;
+        }
+      }
     </style>
   </head>
 
@@ -156,6 +189,29 @@
           </tr>
         </tbody>
       </table>
+
+      <div class="stats-mobile">
+        <div class="stats-row">
+          <span class="label">Tornado Emergencies</span>
+          <span id="torECountMobile">0</span>
+        </div>
+        <div class="stats-row">
+          <span class="label">PDS Warnings</span>
+          <span id="pdsCountMobile">0</span>
+        </div>
+        <div class="stats-row">
+          <span class="label">Tornado Warnings</span>
+          <span id="tornadoCountMobile">0</span>
+        </div>
+        <div class="stats-row">
+          <span class="label">Severe T-Storm Warnings</span>
+          <span id="svrCountMobile">0</span>
+        </div>
+        <div class="stats-row">
+          <span class="label">Total Warnings</span>
+          <span id="totalCountMobile">0</span>
+        </div>
+      </div>
 
       <div id="statsDisplay" class="stats-container"></div>
       <div id="alerts"></div>
@@ -237,11 +293,24 @@
           if (severitySet.has("severeWarn"))
             $("body").addClass("severeWarnBackgroundColor");
 
+          //desktop menu
           $("#torECount").text(totalTorEWarnings);
           $("#pdsCount").text(totalPDSWarnings);
           $("#tornadoCount").text(totalTornadoWarnings);
           $("#svrCount").text(totalSevereThunderstormWarnings);
           $("#totalCount").text(
+            totalTorEWarnings +
+              totalPDSWarnings +
+              totalTornadoWarnings +
+              totalSevereThunderstormWarnings
+          );
+
+          //mobile menu
+          $("#torECountMobile").text(totalTorEWarnings);
+          $("#pdsCountMobile").text(totalPDSWarnings);
+          $("#tornadoCountMobile").text(totalTornadoWarnings);
+          $("#svrCountMobile").text(totalSevereThunderstormWarnings);
+          $("#totalCountMobile").text(
             totalTorEWarnings +
               totalPDSWarnings +
               totalTornadoWarnings +
