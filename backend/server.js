@@ -8,7 +8,10 @@ import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
 import bigCities from "./bigCities.js";
+import { JSDOM } from "jsdom";
+import { features } from "process";
 const dataPath = path.resolve("./alertStats.json");
+const riskPath = path.resolve("./risk_snapshot.json");
 
 dotenv.config();
 
@@ -35,6 +38,84 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+async function fetchDay1Outlook() {
+  try {
+    const response = await fetch(
+      "https://www.spc.noaa.gov/products/outlook/day1otlk.html"
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Get the response text
+    const data = await response.text();
+    const dom = new JSDOM(data);
+
+    // Extract the text within the <pre> tag where the outlook text is located
+    const text =
+      dom.window.document.querySelector("pre")?.textContent ||
+      "No outlook text found";
+
+    // Try matching the general risk level (e.g., "SLIGHT", "ENHANCED")
+    const riskMatch = text.match(/THERE IS A (.+?) RISK OF/);
+    const riskLevel = riskMatch ? riskMatch[1].trim() : "No risk found";
+
+    // Check for tornado risk mentioned in the outlook text (a general mention of tornadoes)
+    const tornadoRiskMatch = text.match(/a few tornadoes/i);
+    const tornadoRisk = tornadoRiskMatch
+      ? "Some tornado risk mentioned"
+      : "No tornado risk specifically mentioned";
+
+    const todaysRisk = await readRiskSnapshot();
+
+    const now = new Date();
+    const prev = new Date(todaysRisk.timestamp);
+    const isNewDay =
+      now.toDateString() !== prev.toDateString() && now.getHours() >= 6;
+
+    // console.log("RISK: " + JSON.stringify(todaysRisk.risk));
+    // console.log("IS NEW DAY? " + isNewDay);
+
+    if (todaysRisk.risk != riskLevel || isNewDay) {
+      console.log("update the file and send email");
+      await fs.writeFile(
+        riskPath,
+        JSON.stringify(
+          { risk: riskLevel, timestamp: new Date().toISOString() },
+          null,
+          2
+        )
+      );
+
+      const emailContent = generateRiskOutlookContent(riskLevel, text);
+
+      // Email options
+      const mailOptions = {
+        from: "kairblarson@gmail.com",
+        to: "kairblarson@gmail.com", // The recipient email address
+        subject: "SPC Day 1 Outlook",
+        html: emailContent, // Pass the generated HTML content here
+      };
+
+      // Send email with Nodemailer
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.log("Error sending severe weather email:", error);
+        } else {
+          console.log("Email sent:", info.response);
+        }
+      });
+    }
+
+    // Optionally, return this for email or other actions
+    // return { riskLevel, tornadoRisk, text };
+  } catch (err) {
+    console.log("Failed to fetch SPC outlook:", err);
+  }
+}
+
+//maybe use cape values that are described in mesoscale discussions to determine the potential for the day
 function calculateScore(alert) {
   const {
     event = "",
@@ -60,7 +141,7 @@ function calculateScore(alert) {
   else if (eventLower.includes("tornado warning")) baseScore = 25;
   else if (eventLower.includes("severe thunderstorm warning")) baseScore = 10;
   else if (eventLower.includes("tornado watch")) baseScore = 5;
-  else return 0; // Skip others (e.g. tornado watch)
+  else return 0; // Skip others
 
   // --- Confirmation Bonuses (Radar/Observed) ---
   if (desc.includes("radar confirmed") || desc.includes("observed tornado"))
@@ -159,7 +240,7 @@ async function fetchAlertsAndUpdate() {
       return;
     }
 
-    //all relevant alerts
+    //all relevant alerts => tornado watch is used for calculation purposes but does not get counted for "total alerts" or displayed to the ui
     const relevantAlerts = data.features.filter((alert) => {
       const type = alert.properties.event?.toLowerCase();
       return [
@@ -199,9 +280,9 @@ async function fetchAlertsAndUpdate() {
           // Email options
           const mailOptions = {
             from: "kairblarson@gmail.com",
-            to: "kairblarson@gmail.com", // The recipient email address
+            to: "kairblarson@gmail.com",
             subject: "Tornado Emergency Issued",
-            html: emailContent, // Pass the generated HTML content here
+            html: emailContent,
           };
 
           // Send email with Nodemailer
@@ -239,7 +320,6 @@ async function fetchAlertsAndUpdate() {
       scoreWentBelowTornadoOutbreakReset
     ) {
       console.log("Sending email for tornado outbreak...");
-
       // Generate the dynamic email content
       const emailContent = generateTornadoOutbreakEmailContent(
         tornadoSpecificAlerts
@@ -312,6 +392,23 @@ async function readStats() {
   }
 }
 
+async function readRiskSnapshot() {
+  try {
+    const file = await fs.readFile(riskPath, "utf-8");
+    return JSON.parse(file);
+  } catch {
+    await fs.writeFile(
+      riskPath,
+      JSON.stringify(
+        { risk: "none", timestamp: new Date().toISOString() },
+        null,
+        2
+      )
+    );
+    return { risk: "none", timestamp: new Date().toISOString() };
+  }
+}
+
 // Function to generate HTML email content dynamically
 function generateSevereWeatherEmailContent(score, alerts) {
   let areasAffectedString = "";
@@ -352,6 +449,7 @@ function generateTornadoOutbreakEmailContent(alerts) {
   let areasAffectedString = "";
   const areasAffectedSet = new Set();
 
+  //this logic is not really necessary but it just formats stuff a little cleaner (no repeats)
   alerts.forEach((alert) => {
     let i = 0;
     let currentAreaString = "";
@@ -375,7 +473,6 @@ function generateTornadoOutbreakEmailContent(alerts) {
   });
 
   return `
-    <h1 style="font-family: Arial, sans-serif; color: #333;">Severe Weather Alert</h1>
     <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
       <h2>Number of tornado related warnings: ${alerts.length}</h2>
       <h2>There is currently a tornado outbreak occuring accross: ${areasAffectedString}</h2>
@@ -385,9 +482,18 @@ function generateTornadoOutbreakEmailContent(alerts) {
 
 function generateTorEEmailContent(alert) {
   return `
-    <h1 style="font-family: Arial, sans-serif; color: #333;">Severe Weather Alert</h1>
     <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
-      <h2>Tornado Emergency Issued for: ${alert.properties.areaDesc}</h2>
+      <h2>A Tornado Emergency Issued for: ${alert.properties.areaDesc}</h2>
+    </div>
+  `;
+}
+
+function generateRiskOutlookContent(risk, text) {
+  return `
+    <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
+      <h2>Todays risk outlook is: ${risk}</h2>
+      <br>
+      <h2>${text}</h2>
     </div>
   `;
 }
@@ -446,6 +552,7 @@ function getMaxScoreLastHour() {
 
 // Run every minute
 cron.schedule("* * * * *", fetchAlertsAndUpdate);
+cron.schedule("* * * * *", fetchDay1Outlook);
 
 // Combined endpoint for score + alerts + historical stats
 app.get("/weather-score", async (req, res) => {
