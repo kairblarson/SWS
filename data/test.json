@@ -1,0 +1,69 @@
+{
+  "score": 0,
+  "alerts": [
+    {
+      "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.981494b297917e345dbca84707abae057aae4d5c.001.1",
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-89.36, 31.48],
+            [-89.3199999, 31.79],
+            [-89.17, 31.81],
+            [-88.94, 31.82],
+            [-88.94, 31.56],
+            [-89.36, 31.48]
+          ]
+        ]
+      },
+      "properties": {
+        "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.981494b297917e345dbca84707abae057aae4d5c.001.1",
+        "@type": "wx:Alert",
+        "id": "urn:oid:2.49.0.1.840.0.981494b297917e345dbca84707abae057aae4d5c.001.1",
+        "areaDesc": "Jones, MS",
+        "geocode": { "SAME": ["028067"], "UGC": ["MSC067"] },
+        "affectedZones": ["https://api.weather.gov/zones/county/MSC067"],
+        "references": [],
+        "sent": "2025-05-27T09:12:00-05:00",
+        "effective": "2025-05-27T09:12:00-05:00",
+        "onset": "2025-05-27T09:12:00-05:00",
+        "expires": "2025-05-27T10:00:00-05:00",
+        "ends": "2025-05-27T10:00:00-05:00",
+        "status": "Actual",
+        "messageType": "Alert",
+        "category": "Met",
+        "severity": "Severe",
+        "certainty": "Observed",
+        "urgency": "Immediate",
+        "event": "Severe Thunderstorm Warning",
+        "sender": "w-nws.webmaster@noaa.gov",
+        "senderName": "NWS Jackson MS",
+        "headline": "Severe Thunderstorm Warning issued May 27 at 9:12AM CDT until May 27 at 10:00AM CDT by NWS Jackson MS",
+        "description": "SVRJAN\n\nThe National Weather Service in Jackson has issued a\n\n* Severe Thunderstorm Warning for...\nJones County in southeastern Mississippi...\n\n* Until 1000 AM CDT.\n\n* At 912 AM CDT, a severe thunderstorm was located near Hebron, or 7\nmiles northwest of Ellisville, moving east at 35 mph.\n\nHAZARD...60 mph wind gusts.\n\nSOURCE...Radar indicated.\n\nIMPACT...Expect damage to roofs, siding, and trees.\n\n* This severe thunderstorm will be near...\nLaurel, Ellisville, and Soso around 915 AM CDT.\nTuckers Crossing around 925 AM CDT.\nSandersville and Mill Creek around 935 AM CDT.",
+        "instruction": "For your protection move to an interior room on the lowest floor of a\nbuilding.",
+        "response": "Shelter",
+        "parameters": {
+          "AWIPSidentifier": ["SVRJAN"],
+          "WMOidentifier": ["WUUS54 KJAN 271412"],
+          "eventMotionDescription": [
+            "2025-05-27T14:12:00-00:00...storm...253DEG...29KT...31.65,-89.31"
+          ],
+          "windThreat": ["RADAR INDICATED"],
+          "maxWindGust": ["60 MPH"],
+          "hailThreat": ["RADAR INDICATED"],
+          "maxHailSize": ["Up to .75"],
+          "BLOCKCHANNEL": ["EAS", "NWEM", "CMAS"],
+          "EAS-ORG": ["WXR"],
+          "VTEC": ["/O.NEW.KJAN.SV.W.0374.250527T1412Z-250527T1500Z/"],
+          "eventEndingTime": ["2025-05-27T10:00:00-05:00"]
+        },
+        "scope": "Public",
+        "code": "IPAWSv1.0",
+        "language": "en-US",
+        "web": "http://www.weather.gov",
+        "eventCode": { "SAME": ["SVR"], "NationalWeatherService": ["SVW"] }
+      }
+    }
+  ]
+}
