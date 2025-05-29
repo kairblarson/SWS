@@ -58,14 +58,23 @@ async function fetchDay1Outlook() {
       "No outlook text found";
 
     // Try matching the general risk level (e.g., "SLIGHT", "ENHANCED")
-    const riskMatch = text.match(/THERE IS A (.+?) RISK OF/);
+    const riskMatch = text.match(/THERE IS (?:A|AN) (.+?) RISK OF/i);
     const riskLevel = riskMatch ? riskMatch[1].trim() : "No risk found";
 
     // Check for tornado risk mentioned in the outlook text (a general mention of tornadoes)
-    const tornadoRiskMatch = text.match(/a few tornadoes/i);
-    const tornadoRisk = tornadoRiskMatch
-      ? "Some tornado risk mentioned"
-      : "No tornado risk specifically mentioned";
+    const tornadoResponse = await fetch(
+      "https://mapservices.weather.noaa.gov/vector/rest/services/outlooks/SPC_wx_outlks/MapServer/3/query?where=1%3D1&outFields=*&f=geojson"
+    );
+
+    const tornadoData = await tornadoResponse.json();
+
+    if (!tornadoData.features.length) {
+      console.log("No tornado probability data found.");
+      return;
+    }
+
+    const probs = tornadoData.features.map((f) => f.properties.dn);
+    const tornadoProbability = Math.max(...probs);
 
     const todaysRisk = await readRiskSnapshot();
 
@@ -73,9 +82,6 @@ async function fetchDay1Outlook() {
     const prev = new Date(todaysRisk.timestamp);
     const isNewDay =
       now.toDateString() !== prev.toDateString() && now.getHours() >= 6;
-
-    // console.log("RISK: " + JSON.stringify(todaysRisk.risk));
-    // console.log("IS NEW DAY? " + isNewDay);
 
     if (todaysRisk.risk != riskLevel || isNewDay) {
       console.log("update the file and send email");
@@ -88,7 +94,13 @@ async function fetchDay1Outlook() {
         )
       );
 
-      const emailContent = generateRiskOutlookContent(riskLevel, text);
+      //right now we are not saving the probability and sending an email if it does update throughout the day because its assumed if it does update so will
+      //the spc outlook so no need to check for both
+      const emailContent = generateRiskOutlookContent(
+        riskLevel,
+        text.substring(0, 200),
+        tornadoProbability
+      );
 
       // Email options
       const mailOptions = {
@@ -107,9 +119,6 @@ async function fetchDay1Outlook() {
         }
       });
     }
-
-    // Optionally, return this for email or other actions
-    // return { riskLevel, tornadoRisk, text };
   } catch (err) {
     console.log("Failed to fetch SPC outlook:", err);
   }
@@ -375,7 +384,6 @@ async function fetchAlertsAndUpdate() {
       scoreWentBelowSevereWeatherReset = false;
     }
 
-    // console.log(generateTornadoOutbreakEmailContent(relevantAlerts)); //REMOVE IN PROD
   } catch (error) {
     console.error("Error fetching alerts:", error);
   }
@@ -488,10 +496,10 @@ function generateTorEEmailContent(alert) {
   `;
 }
 
-function generateRiskOutlookContent(risk, text) {
+function generateRiskOutlookContent(risk, text, tornadoProbability) {
   return `
     <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
-      <h2>Todays risk outlook is: ${risk}</h2>
+      <h2>Todays risk outlook is ${risk} with a ${tornadoProbability} tornado probability</h2>
       <br>
       <h2>${text}</h2>
     </div>
