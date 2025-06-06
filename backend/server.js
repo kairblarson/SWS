@@ -503,19 +503,14 @@ function generateRiskOutlookContent(risk, text, tornadoProbability) {
   let riskTextColor = "black";
 
   if (risk == "MARGINAL") {
-    console.log("Changing color to MARGINAL");
     riskTextColor = "#008000";
   } else if (risk == "SLIGHT") {
-    console.log("Changing color to SLIGHT");
     riskTextColor = "#FFFF00";
   } else if (risk == "ENHANCED") {
-    console.log("Changing color to ENHANCED");
     riskTextColor = "#FFA500";
   } else if (risk == "MODERATE") {
-    console.log("Changing color to MODERATE");
     riskTextColor = "#FF0000";
   } else if (risk == "HIGH") {
-    console.log("Changing color to HIGH");
     riskTextColor = "#FF00FF";
   }
 
