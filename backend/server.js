@@ -129,6 +129,7 @@ function calculateScore(alert) {
   const {
     event = "",
     description = "",
+    headline = "",
     areaDesc = "",
     onset = "",
     sent = "",
@@ -136,21 +137,25 @@ function calculateScore(alert) {
   } = alert.properties;
 
   const desc = description.toLowerCase();
+  const head = headline.toLowerCase();
   const eventLower = event.toLowerCase();
-  const isTornadoWarning =
-    eventLower.includes("tornado emergency") ||
-    eventLower.includes("particularly dangerous situation") ||
-    eventLower.includes("tornado warning");
+
+  // --- Special Flags from Text ---
+  const isTornadoWarning = eventLower.includes("tornado warning");
+  const isPDS =
+    desc.includes("particularly dangerous situation") ||
+    head.includes("particularly dangerous situation");
+  const isEmergency =
+    desc.includes("tornado emergency") || head.includes("tornado emergency");
 
   // --- Base Score ---
   let baseScore = 0;
-  if (eventLower.includes("tornado emergency")) baseScore = 150;
-  else if (eventLower.includes("particularly dangerous situation"))
-    baseScore = 100;
-  else if (eventLower.includes("tornado warning")) baseScore = 25;
+  if (isEmergency) baseScore = 150;
+  else if (isPDS) baseScore = 100;
+  else if (isTornadoWarning) baseScore = 25;
   else if (eventLower.includes("severe thunderstorm warning")) baseScore = 10;
   else if (eventLower.includes("tornado watch")) baseScore = 5;
-  else return 0; // Skip others
+  else return 0; // Skip other events
 
   // --- Confirmation Bonuses (Radar/Observed) ---
   if (desc.includes("radar confirmed") || desc.includes("observed tornado"))
@@ -167,7 +172,7 @@ function calculateScore(alert) {
     else if (windSpeed >= 70) baseScore += 10;
   }
 
-  // --- Hail Bonus (optional) ---
+  // --- Hail Bonus ---
   const hailMatch = desc.match(/hail up to (\d+(\.\d+)?) ?(inch|in)/);
   if (hailMatch) {
     const hail = parseFloat(hailMatch[1]);
@@ -186,9 +191,8 @@ function calculateScore(alert) {
     else if (width >= 0.5) baseScore += 15;
   }
 
-  // --- Conditional Multipliers (Tornado warnings only) ---
+  // --- Conditional Bonuses for Tornado Warnings ---
   if (isTornadoWarning) {
-    // Storm motion
     const motionMatch = desc.match(/moving (at )?(\d{2,3}) ?mph/);
     if (motionMatch) {
       const speed = parseInt(motionMatch[2]);
@@ -196,15 +200,12 @@ function calculateScore(alert) {
       else if (speed >= 50) baseScore += 10;
     }
 
-    // Time of day (nighttime)
     const onsetHour = onset ? new Date(onset).getHours() : null;
     if (onsetHour !== null && (onsetHour < 6 || onsetHour >= 20))
       baseScore += 25;
 
-    // Big cities mentioned
     if (bigCities.some((city) => desc.includes(city))) baseScore += 20;
 
-    // Recency boost
     if (sent) {
       const now = Date.now();
       const sentTime = new Date(sent).getTime();
@@ -213,12 +214,12 @@ function calculateScore(alert) {
     }
   }
 
-  // --- Affected area size ---
+  // --- Affected Area Size ---
   const counties = areaDesc.split(";").length;
   if (counties >= 10) baseScore += 20;
   else if (counties >= 5) baseScore += 10;
 
-  // --- Decay ---
+  // --- Decay Over Time ---
   if (!eventLower.includes("tornado watch") && sent && expires) {
     const now = Date.now();
     const sentTime = new Date(sent).getTime();
@@ -226,7 +227,7 @@ function calculateScore(alert) {
     const duration = expiresTime - sentTime;
     const elapsed = now - sentTime;
     if (duration > 0 && elapsed > 0) {
-      const decaySteps = Math.floor(elapsed / (duration / 10)); // 10% steps
+      const decaySteps = Math.floor(elapsed / (duration / 10));
       baseScore = Math.max(0, baseScore - decaySteps);
     }
   }
@@ -243,30 +244,34 @@ async function fetchAlertsAndUpdate() {
     });
 
     const data = await response.json();
-    // console.log("DATA: "+JSON.stringify(data));
     if (data.status == 502) {
       console.log("NWS Ran into an error...");
       return;
     }
 
-    //all relevant alerts => tornado watch is used for calculation purposes but does not get counted for "total alerts" or displayed to the ui
+    // All relevant alerts => tornado watch is used for score but not counted/displayed
     const relevantAlerts = data.features.filter((alert) => {
-      const type = alert.properties.event?.toLowerCase();
-      return [
-        "tornado warning",
-        "particularly dangerous situation",
-        "tornado emergency",
-        "severe thunderstorm warning", //not displayed but does affect score
-      ].includes(type);
+      const event = alert.properties.event?.toLowerCase() || "";
+      const description = alert.properties.description?.toLowerCase() || "";
+
+      return (
+        event.includes("tornado warning") ||
+        event.includes("severe thunderstorm warning") ||
+        description.includes("particularly dangerous situation") ||
+        description.includes("tornado emergency")
+      );
     });
-    //tornado only alerts
+
+    // Tornado-specific alerts (used for display)
     const tornadoSpecificAlerts = data.features.filter((alert) => {
-      const type = alert.properties.event?.toLowerCase();
-      return [
-        "tornado warning",
-        "particularly dangerous situation",
-        "tornado emergency",
-      ].includes(type);
+      const event = alert.properties.event?.toLowerCase() || "";
+      const description = alert.properties.description?.toLowerCase() || "";
+
+      return (
+        event.includes("tornado warning") ||
+        description.includes("particularly dangerous situation") ||
+        description.includes("tornado emergency")
+      );
     });
 
     let score = 0;
@@ -280,7 +285,6 @@ async function fetchAlertsAndUpdate() {
         torEAlerts++;
 
         //logic that determines if torE alert has already been sent or not
-        //tor e logic needs to be here because we are just using the same loop that calculates the score but we can easily move it out i guess and create another loop
         if (!isTorEActive) {
           console.log("Sending email for a Tornado Emergency...");
           // Generate the dynamic email content
@@ -383,7 +387,6 @@ async function fetchAlertsAndUpdate() {
 
       scoreWentBelowSevereWeatherReset = false;
     }
-
   } catch (error) {
     console.error("Error fetching alerts:", error);
   }
@@ -497,9 +500,28 @@ function generateTorEEmailContent(alert) {
 }
 
 function generateRiskOutlookContent(risk, text, tornadoProbability) {
+  let riskTextColor = "black";
+
+  if (risk == "MARGINAL") {
+    console.log("Changing color to MARGINAL");
+    riskTextColor = "#008000";
+  } else if (risk == "SLIGHT") {
+    console.log("Changing color to SLIGHT");
+    riskTextColor = "#FFFF00";
+  } else if (risk == "ENHANCED") {
+    console.log("Changing color to ENHANCED");
+    riskTextColor = "#FFA500";
+  } else if (risk == "MODERATE") {
+    console.log("Changing color to MODERATE");
+    riskTextColor = "#FF0000";
+  } else if (risk == "HIGH") {
+    console.log("Changing color to HIGH");
+    riskTextColor = "#FF00FF";
+  }
+
   return `
     <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
-      <h2>Todays risk outlook is ${risk} with a ${tornadoProbability} tornado probability</h2>
+      <h2>Today's risk outlook is <span style="color: ${riskTextColor}">${risk}</span> with a ${tornadoProbability}% tornado probability</h2>
       <br>
       <h2>${text}</h2>
     </div>
@@ -517,16 +539,16 @@ async function updateStats(alerts, score) {
 
   // Process alerts
   alerts.forEach((a) => {
-    const event = a.properties.event.toLowerCase();
+    const description = a.properties.description?.toLowerCase() || "";
 
-    if (event.includes("particularly dangerous situation")) {
+    if (description.includes("particularly dangerous situation")) {
       stats.pdsTornadoes.push({
         date: a.properties.eventDate,
         eventDetails: a.properties.description,
       });
     }
 
-    if (event.includes("tornado emergency")) {
+    if (description.includes("tornado emergency")) {
       stats.torETornadoes.push({
         date: a.properties.eventDate,
         eventDetails: a.properties.description,
