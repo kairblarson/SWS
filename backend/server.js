@@ -23,8 +23,8 @@ const API_URL = "https://api.weather.gov/alerts/active";
 const SEVERE_WEATHER_ALERT_THRESHOLD = 250;
 const SEVERE_WEATHER_RESET_THRESHOLD = 200;
 let scoreWentBelowSevereWeatherReset = true;
-const TORNADO_OUTBREAK_ALERT_THRESHOLD = 5;
-const TORNADO_BREAKOUT_RESET_THRESHOLD = 2;
+const TORNADO_OUTBREAK_ALERT_THRESHOLD = 7;
+const TORNADO_BREAKOUT_RESET_THRESHOLD = 5;
 let scoreWentBelowTornadoOutbreakReset = true;
 let isTorEActive = false;
 let cachedData = { score: 0, alerts: [] };
@@ -99,7 +99,8 @@ async function fetchDay1Outlook() {
       const emailContent = generateRiskOutlookContent(
         riskLevel,
         text.substring(0, 200),
-        tornadoProbability
+        tornadoProbability,
+        isNewDay
       );
 
       // Email options
@@ -499,7 +500,7 @@ function generateTorEEmailContent(alert) {
   `;
 }
 
-function generateRiskOutlookContent(risk, text, tornadoProbability) {
+function generateRiskOutlookContent(risk, text, tornadoProbability, isNewDay) {
   let riskTextColor = "black";
 
   if (risk == "MARGINAL") {
@@ -516,9 +517,18 @@ function generateRiskOutlookContent(risk, text, tornadoProbability) {
 
   return `
     <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
-      <h2>Today's risk outlook is <span style="color: ${riskTextColor}">${risk}</span> with a ${tornadoProbability}% tornado probability</h2>
+      <h2>${!isNewDay ? " The *UPDATED*" : "Today's"} risk outlook is <span style="color: ${riskTextColor}">${risk}</span> with a ${tornadoProbability}% tornado probability</h2>
       <br>
       <h2>${text}</h2>
+    </div>
+  `;
+}
+
+//connect it
+function generateNewHighScoreEmailContent(score) {
+  return `
+    <div style="background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);">
+      <h2>A new Severe Weather Score high score has been set: ${score}</h2>
     </div>
   `;
 }
@@ -551,15 +561,44 @@ async function updateStats(alerts, score) {
     }
   });
 
+  // Only send email if score beats record AND it's been over 1 hour since last record
+  const now = Date.now();
+  const lastRecordTime = new Date(stats.highestScoreEver.date).getTime();
+  const oneHourMs = 60 * 60 * 1000;
+
   if (score > stats.highestScoreEver.score) {
     stats.highestScoreEver = {
       date: new Date().toISOString(), // Use current date
       score: score,
     };
-  }
 
-  // Write the updated stats to the file
-  await fs.writeFile(dataPath, JSON.stringify(stats, null, 2)); // Pretty-print the JSON
+    // Write the updated stats to the file
+    await fs.writeFile(dataPath, JSON.stringify(stats, null, 2)); // Pretty-print the JSON
+
+    //only send an email about the new high score if its been more than an hour
+    if (now - lastRecordTime > oneHourMs) {
+      console.log("Sending email for a new high score...");
+      // Generate the dynamic email content
+      const emailContent = generateNewHighScoreEmailContent(score);
+
+      // Email options
+      const mailOptions = {
+        from: "kairblarson@gmail.com",
+        to: "kairblarson@gmail.com",
+        subject: "New High Score Set",
+        html: emailContent,
+      };
+
+      // Send email with Nodemailer
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.log("Error sending tor e email:", error);
+        } else {
+          console.log("Email sent:", info.response);
+        }
+      });
+    }
+  }
 }
 
 let scoreHistory = [];
