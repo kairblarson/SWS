@@ -121,12 +121,51 @@
           width: 0px;
         }
       }
+      .stats-mobile {
+        display: none;
+        background-color: #fff;
+        border-radius: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+      }
+
+      .stats-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #ddd;
+      }
+
+      .stats-row:last-child {
+        border-bottom: none;
+      }
+
+      .stats-row .label {
+        font-weight: bold;
+      }
+
+      /* Responsive swap */
+      @media (max-width: 600px) {
+        .stats-table {
+          display: none;
+        }
+
+        .stats-mobile {
+          display: block;
+        }
+      }
+      
     </style>
   </head>
 
   <body>
     <div id="content">
       <h1>🚨 Severe Weather Score</h1>
+      <div>
+        <h3>
+          Todays Risk Outlook: <span id="todaysRiskOutlook">Loading...</span>
+        </h3>
+      </div>
       <canvas id="scoreChart" width="600" height="200"></canvas>
       <h3>
         Max Score (Last Hour): <span id="maxScoreLastHour">Loading...</span>
@@ -359,9 +398,40 @@
         }
       }
 
+      function fetchRiskOutlook() {
+        console.log("FETCH OUTLOOK");
+        //this phrasing should allow for both localhost, live server and live production
+        let baseUrl = "";
+
+        if (
+          location.hostname === "localhost" ||
+          location.hostname.includes("127.")
+        ) {
+          baseUrl = "http://localhost:3000";
+        } else {
+          baseUrl = "http://100.94.108.114:3000";
+        }
+
+        fetch(`${baseUrl}/todays-outlook`)
+          .then((res) => {
+            if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+            return res.json();
+          })
+          .then((data) => {
+            //maybe change the score color based on the score as well?
+            $("#todaysRiskOutlook").text(data.outlook.risk);
+            console.log(JSON.stringify(data.outlook.risk));
+          })
+          .catch((error) => {
+            console.error("Error fetching score:", error);
+            $("#score").text("Error fetching data.");
+          });
+      }
+
       $(document).ready(function () {
         fetchScore();
         setInterval(fetchScore, 60000); // every minute
+        fetchRiskOutlook();
       });
     </script>
   </body>
