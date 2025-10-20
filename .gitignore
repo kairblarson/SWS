@@ -1,1 +1,8 @@
-.env*
+.env
+.env.*
+**/.env
+**/.env.*
+alertStats.json
+error.json
+test.json
+risk_snapshot.json
