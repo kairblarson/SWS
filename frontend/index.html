@@ -121,39 +121,6 @@
           width: 0px;
         }
       }
-      .stats-mobile {
-        display: none;
-        background-color: #fff;
-        border-radius: 6px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        padding: 1rem;
-      }
-
-      .stats-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #ddd;
-      }
-
-      .stats-row:last-child {
-        border-bottom: none;
-      }
-
-      .stats-row .label {
-        font-weight: bold;
-      }
-
-      /* Responsive swap */
-      @media (max-width: 600px) {
-        .stats-table {
-          display: none;
-        }
-
-        .stats-mobile {
-          display: block;
-        }
-      }
     </style>
   </head>
 
@@ -190,29 +157,6 @@
         </tbody>
       </table>
 
-      <div class="stats-mobile">
-        <div class="stats-row">
-          <span class="label">Tornado Emergencies</span>
-          <span id="torECountMobile">0</span>
-        </div>
-        <div class="stats-row">
-          <span class="label">PDS Warnings</span>
-          <span id="pdsCountMobile">0</span>
-        </div>
-        <div class="stats-row">
-          <span class="label">Tornado Warnings</span>
-          <span id="tornadoCountMobile">0</span>
-        </div>
-        <div class="stats-row">
-          <span class="label">Severe T-Storm Warnings</span>
-          <span id="svrCountMobile">0</span>
-        </div>
-        <div class="stats-row">
-          <span class="label">Total Warnings</span>
-          <span id="totalCountMobile">0</span>
-        </div>
-      </div>
-
       <div id="statsDisplay" class="stats-container"></div>
       <div id="alerts"></div>
     </div>
@@ -220,15 +164,23 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
       //this is just for rendering purposes to keep the high stuff at the top
-      function getWeight(type) {
-        const t = type?.toLowerCase();
-
-        if (t === "tornado emergency") return 5;
-        if (t.includes("particularly dangerous")) return 4;
-        if (t === "tornado warning") return 3;
-        if (t === "severe thunderstorm warning") return 2;
-        if (t === "tornado watch") return 1;
+      function getWeight(event, desc) {
+        if (desc.includes("tornado emergency")) return 5;
+        if (desc.includes("particularly dangerous")) return 4;
+        if (event === "tornado warning") return 3;
+        if (event === "severe thunderstorm warning") return 2;
+        if (event === "tornado watch") return 1;
         return 0;
+      }
+
+      function getAlertType(event, desc) {
+        if (desc.includes("tornado emergency")) return "Tornado Emergency";
+        if (desc.includes("particularly dangerous")) return "PDS Warning";
+        if (event === "tornado warning") return "Tornado Warning";
+        if (event === "severe thunderstorm warning")
+          return "Severe Thunderstorm Warning";
+        if (event === "tornado watch") return "Tornado Watch";
+        return "Other";
       }
 
       //this is just for rendering as well to determine the color of the edge of the warning
@@ -240,7 +192,7 @@
       }
 
       function renderAlerts(alerts) {
-        // console.log("ALERTS: " +JSON.stringify(alerts))
+        // console.log("ALERTS: " + JSON.stringify(alerts));
         const $container = $("#alerts").empty();
 
         let totalTorEWarnings = 0;
@@ -260,19 +212,26 @@
         );
 
         alerts.forEach((alert) => {
-          if (alert.properties.event.toLowerCase() === "tornado emergency") {
+          console.log("ALERT: " + alert.properties.description);
+          if (
+            alert.properties.description
+              .toLowerCase()
+              .includes("tornado emergency")
+          ) {
+            console.log("TOR E WARNING DETECTED");
             severitySet.add("torEWarn");
             totalTorEWarnings++;
-          }
-          if (
-            alert.properties.event
+          } else if (
+            alert.properties.description
               .toLowerCase()
-              .includes("particularly dangerous")
+              .includes("particularly dangerous situation")
           ) {
+            console.log("PDS WARNING DETECTED");
             severitySet.add("PDSWarn");
             totalPDSWarnings++;
-          }
-          if (alert.properties.event.toLowerCase() === "tornado warning") {
+          } else if (
+            alert.properties.event.toLowerCase() === "tornado warning"
+          ) {
             severitySet.add("torWarn");
             totalTornadoWarnings++;
           }
@@ -285,7 +244,8 @@
           }
 
           if (severitySet.has("torEWarn"))
-            $("body").addClass("torEWarnBackgroundColor");
+            console.log("TOR E WARN CLASS ADDED");
+          $("body").addClass("torEWarnBackgroundColor");
           if (severitySet.has("PDSWarn"))
             $("body").addClass("PDSWarnBackgroundColor");
           if (severitySet.has("torWarn"))
@@ -293,7 +253,6 @@
           if (severitySet.has("severeWarn"))
             $("body").addClass("severeWarnBackgroundColor");
 
-          //desktop menu
           $("#torECount").text(totalTorEWarnings);
           $("#pdsCount").text(totalPDSWarnings);
           $("#tornadoCount").text(totalTornadoWarnings);
@@ -304,26 +263,21 @@
               totalTornadoWarnings +
               totalSevereThunderstormWarnings
           );
-
-          //mobile menu
-          $("#torECountMobile").text(totalTorEWarnings);
-          $("#pdsCountMobile").text(totalPDSWarnings);
-          $("#tornadoCountMobile").text(totalTornadoWarnings);
-          $("#svrCountMobile").text(totalSevereThunderstormWarnings);
-          $("#totalCountMobile").text(
-            totalTorEWarnings +
-              totalPDSWarnings +
-              totalTornadoWarnings +
-              totalSevereThunderstormWarnings
-          );
         });
 
         alerts.forEach((alert) => {
           if (alert.properties.event == "Severe Thunderstorm Warning") return;
-          const severity = getWeight(alert.properties.event);
+          const severity = getWeight(
+            alert.properties.event.toLowerCase(),
+            alert.properties.description.toLowerCase()
+          );
+          const alertType = getAlertType(
+            alert.properties.event.toLowerCase(),
+            alert.properties.description.toLowerCase()
+          );
           const $alert = $(`
           <div class="alert ${getSeverityClass(severity)}">
-            <h3>${alert.properties.event}</h3>
+            <h3>${alertType}</h3>
             <p><strong>Area:</strong> ${alert.properties.areaDesc}</p>
             <p><strong>Severity:</strong> ${alert.properties.severity}</p>
             <p><strong>Certainty:</strong> ${alert.properties.certainty}</p>
@@ -338,11 +292,19 @@
       }
 
       function fetchScore() {
-        const baseUrl =
-          location.hostname === "localhost"
-            ? "http://localhost:3000"
-            : "http://100.94.108.114:3000";
-        fetch(`http://localhost:3000/weather-score`)
+        //this phrasing should allow for both localhost, live server and live production
+        let baseUrl = "";
+
+        if (
+          location.hostname === "localhost" ||
+          location.hostname.includes("127.")
+        ) {
+          baseUrl = "http://localhost:3000";
+        } else {
+          baseUrl = "http://100.94.108.114:3000";
+        }
+
+        fetch(`${baseUrl}/weather-score`)
           .then((res) => {
             if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
             return res.json();

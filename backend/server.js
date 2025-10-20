@@ -84,7 +84,6 @@ async function fetchDay1Outlook() {
       now.toDateString() !== prev.toDateString() && now.getHours() >= 6;
 
     if (todaysRisk.risk != riskLevel || isNewDay) {
-      console.log("update the file and send email");
       await fs.writeFile(
         riskPath,
         JSON.stringify(
@@ -141,7 +140,6 @@ function calculateScore(alert) {
   const head = headline.toLowerCase();
   const eventLower = event.toLowerCase();
 
-  // --- Special Flags from Text ---
   const isTornadoWarning = eventLower.includes("tornado warning");
   const isPDS =
     desc.includes("particularly dangerous situation") ||
@@ -256,40 +254,91 @@ async function fetchAlertsAndUpdate() {
       const description = alert.properties.description?.toLowerCase() || "";
 
       return (
-        event.includes("tornado warning") ||
-        event.includes("severe thunderstorm warning") ||
-        description.includes("particularly dangerous situation") ||
-        description.includes("tornado emergency")
+        event.toLowerCase().includes("tornado warning") ||
+        event.toLowerCase().includes("severe thunderstorm warning") ||
+        event.toLowerCase().includes("tornado watch")
       );
     });
 
     // Tornado-specific alerts (used for display)
     const tornadoSpecificAlerts = data.features.filter((alert) => {
       const event = alert.properties.event?.toLowerCase() || "";
-      const description = alert.properties.description?.toLowerCase() || "";
 
-      return (
-        event.includes("tornado warning") ||
-        description.includes("particularly dangerous situation") ||
-        description.includes("tornado emergency")
-      );
+      return event.includes("tornado warning");
     });
 
     let score = 0;
     let torEAlerts = 0; //initializes everytime so we dont need to manually reset it
 
+    //FAKE TEST
+    const fakeAlert = {
+      id: "https://api.weather.gov/alerts/urn:oid:EXAMPLE.TORE",
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [0, 1],
+            [1, 1],
+            [1, 0],
+          ],
+        ],
+      },
+      properties: {
+        "@id": "https://api.weather.gov/alerts/urn:oid:EXAMPLE.TORE",
+        "@type": "wx:Alert",
+        id: "urn:oid:EXAMPLE.TOREv2",
+        areaDesc: "Greene, MO; Christian, MO; Webster, MO",
+        geocode: { SAME: [], UGC: [] },
+        affectedZones: [],
+        references: [],
+        sent: "2024-05-04T23:15:00-05:00",
+        effective: "2024-05-04T23:15:00-05:00",
+        onset: "2024-05-04T23:16:00-05:00",
+        expires: "2024-05-04T23:45:00-05:00",
+        ends: "2024-05-04T23:45:00-05:00",
+        status: "Actual",
+        messageType: "Alert",
+        category: "Met",
+        severity: "Extreme",
+        certainty: "Observed",
+        urgency: "Immediate",
+        event: "Tornado Warning",
+        sender: "w-nws.webmaster@noaa.gov",
+        senderName: "NWS Springfield MO",
+        headline: "TORNADO EMERGENCY for Springfield Metro",
+        description:
+          "THIS IS A TORNADO EMERGENCY FOR SPRINGFIELD. A CONFIRMED LARGE AND DESTRUCTIVE TORNADO IS ON THE GROUND. THIS IS A PARTICULARLY DANGEROUS SITUATION. TAKE COVER NOW!",
+        instruction: "TAKE COVER NOW!",
+        response: "Shelter",
+        parameters: {},
+        scope: "Public",
+        code: "IPAWSv1.0",
+        language: "en-US",
+        web: "https://www.weather.gov",
+        eventCode: {},
+      },
+    };
+
+    // relevantAlerts.push(fakeAlert);
+
     relevantAlerts.forEach((alert) => {
       score += calculateScore(alert);
       const event = alert.properties.event.toLowerCase();
+      const desc = alert.properties.description.toLowerCase();
 
-      if (event.includes("tornado emergency")) {
+      if (
+        event.includes("tornado emergency") ||
+        desc.includes("tornado emergency")
+      ) {
         torEAlerts++;
 
         //logic that determines if torE alert has already been sent or not
         if (!isTorEActive) {
           console.log("Sending email for a Tornado Emergency...");
           // Generate the dynamic email content
-          const emailContent = generateTorEEmailContent(event);
+          const emailContent = generateTorEEmailContent(alert);
 
           // Email options
           const mailOptions = {
@@ -544,22 +593,49 @@ async function updateStats(alerts, score) {
 
   // Process alerts
   alerts.forEach((a) => {
-    const description = a.properties.description?.toLowerCase() || "";
+    const description = a.properties.description.toLowerCase() || "";
+    const event = a.properties.event.toLowerCase() || "";
 
-    if (description.includes("particularly dangerous situation")) {
-      stats.pdsTornadoes.push({
-        date: a.properties.eventDate,
+    if (
+      description.includes("tornado emergency") ||
+      event.includes("tornado emergency")
+    ) {
+      let doesDuplicateExist = false;
+      stats.torETornadoes.forEach((torE) => {
+        if (torE.id === a.properties.id) {
+          doesDuplicateExist = true;
+          return;
+        }
+      });
+      if (doesDuplicateExist) return; // Exit if this alert is already recorded
+      stats.torETornadoes.push({
+        id: a.properties.id,
+        date: a.properties.sent,
+        location: a.properties.areaDesc,
         eventDetails: a.properties.description,
       });
-    }
-
-    if (description.includes("tornado emergency")) {
-      stats.torETornadoes.push({
-        date: a.properties.eventDate,
+    } else if (
+      description.includes("particularly dangerous situation") ||
+      event.includes("particularly dangerous situation")
+    ) {
+      let doesDuplicateExist = false;
+      stats.pdsTornadoes.forEach((pds) => {
+        if (pds.id === a.properties.id) {
+          doesDuplicateExist = true;
+          return;
+        }
+      });
+      if (doesDuplicateExist) return; // Exit if this alert is already recorded
+      stats.pdsTornadoes.push({
+        id: a.properties.id,
+        date: a.properties.sent,
+        location: a.properties.areaDesc,
         eventDetails: a.properties.description,
       });
     }
   });
+
+  await fs.writeFile(dataPath, JSON.stringify(stats, null, 2)); // Pretty-print the JSON
 
   // Only send email if score beats record AND it's been over 1 hour since last record
   const now = Date.now();
@@ -637,6 +713,21 @@ app.get("/weather-score", async (req, res) => {
   } catch (err) {
     console.error("Error fetching stats:", err);
     res.status(500).json({ error: "Failed to retrieve stats" });
+  }
+});
+
+app.get("/todays-outlook", async (req, res) => {
+  console.log("fetching outlook...");
+
+  try {
+    const file = await fs.readFile(riskPath, "utf-8");
+
+    res.json({
+      outlook: JSON.parse(file),
+    });
+  } catch (err) {
+    console.error("Error fetching outlook:", err);
+    res.status(500).json({ error: "Failed to retrieve outlook" });
   }
 });
 
